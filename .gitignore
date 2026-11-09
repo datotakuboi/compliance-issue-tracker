@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.next-e2e/
+.env
+.mcp-token
+.env.*
+!.env.example
+.postgres/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+next-env.d.ts
