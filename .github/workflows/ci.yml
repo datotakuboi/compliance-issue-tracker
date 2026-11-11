@@ -1,0 +1,46 @@
+name: Verify tracker
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tracker
+          POSTGRES_PASSWORD: local-ci-only
+          POSTGRES_DB: tracker
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tracker -d tracker"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://tracker:local-ci-only@127.0.0.1:5432/tracker?schema=public
+      APP_ORIGIN: http://127.0.0.1:3000
+      DEMO_AUTH_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: cp .env.example .env
+      - run: npx --yes npm@11 ci
+      - run: npx prisma generate
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      - run: npm test
+      - run: npm run test:integration
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run format:check
+      - run: npm audit
