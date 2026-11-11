@@ -1185,11 +1185,11 @@ td:first-child {
   border-top: 1px solid var(--line);
   padding-top: 23px;
 }
-.editor-section .issue-form fieldset {
+.editor-section .issue-form > fieldset {
   grid-template-columns: 1fr 1fr;
 }
-.editor-section label:first-child,
-.editor-section label:nth-child(2) {
+.editor-section .issue-form > fieldset > .title-field,
+.editor-section .issue-form > fieldset > .description-field {
   grid-column: 1/-1;
 }
 .editor-section .button {
@@ -1825,10 +1825,11 @@ details summary:hover {
   .evidence-form {
     grid-template-columns: 1fr;
   }
-  .editor-section .issue-form fieldset {
+  .editor-section .issue-form > fieldset {
     grid-template-columns: 1fr;
   }
-  .editor-section label {
+  .editor-section .issue-form > fieldset > .title-field,
+  .editor-section .issue-form > fieldset > .description-field {
     grid-column: 1/-1;
   }
   .topbar-date {
@@ -4347,6 +4348,11 @@ details summary:hover {
 }
 .required-mark {
   color: #ba1a1a;
+}
+.title-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .field-optional {
   color: #64736c;

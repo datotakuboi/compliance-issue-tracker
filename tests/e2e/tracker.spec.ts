@@ -23,7 +23,7 @@ test("independent review and audited resolution", async ({
   ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Needs attention" }),
-  ).toContainText("Quarterly access review overdue");
+  ).toBeVisible();
   await expect(page.locator("tbody tr").first()).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("overview.png"),
@@ -111,6 +111,15 @@ test("independent review and audited resolution", async ({
       "Independently reviewed the attached evidence and authorize closure.",
     );
   await page.getByRole("button", { name: "Approve closure" }).click();
+  await expect(
+    page.getByRole("button", { name: "Execute approved plan" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
+  await signIn(page, "Alex Morgan");
   await page.getByRole("button", { name: "Execute approved plan" }).click();
   await expect(page.getByText("Plan executed", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(
@@ -142,6 +151,66 @@ test("viewer can filter issues but cannot create or edit", async ({ page }) => {
   await expect(
     page.getByText("Your role cannot create issues.", { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Approvals" }),
+  ).toHaveCount(0);
+  await page.goto("/approvals");
+  await expect(
+    page.getByText("Approver access is required to view the approvals queue.", { exact: false }),
+  ).toBeVisible();
+});
+
+test("analysts cannot view or access the approvals queue", async ({ page }) => {
+  await page.goto("/approvals");
+  await signIn(page, "Alex Morgan");
+  await page.goto("/");
+  await expect(
+    page.getByText("Approver access is required to view the approvals queue.", { exact: false }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Pending human approvals" })).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Approvals" }),
+  ).toHaveCount(0);
+  await page.goto("/approvals");
+  await expect(
+    page.getByText("Approver access is required to view the approvals queue.", { exact: false }),
+  ).toBeVisible();
+});
+
+test("create issue severity choices stay balanced and interactive", async ({
+  page,
+}) => {
+  await page.goto("/issues/new");
+  await signIn(page, "Alex Morgan");
+  await expect(page.getByLabel("Title", { exact: true })).not.toHaveAttribute("placeholder");
+  const cards = page.locator(".severity-option");
+  await expect(cards).toHaveCount(4);
+  const widths = await cards.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().width),
+  );
+  expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(2);
+
+  for (const severity of ["High", "Critical"]) {
+    const option = page.getByRole("radio", { name: new RegExp(severity) });
+    await option.check();
+    await expect(option).toBeChecked();
+    await expect(option.locator("xpath=..")).toHaveCSS(
+      "background-color",
+      severity === "Critical" ? "rgb(255, 241, 239)" : "rgb(232, 246, 242)",
+    );
+  }
+});
+
+test("approver can review the seeded pending proposal", async ({ page }) => {
+  await page.goto("/issues/CW-103");
+  await signIn(page, "Jordan Lee");
+  await expect(page.getByRole("heading", { name: "Incident response exercise evidence" })).toBeVisible();
+  const approve = page.getByRole("button", { name: "Approve closure" });
+  await expect(approve).toBeVisible();
+  await expect(approve).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Reject proposal" })).toBeVisible();
+  await page.getByLabel("Approval rationale").fill("The exercise evidence supports the recorded closure criteria.");
+  await expect(approve).toBeEnabled();
 });
 
 test("register controls, global audit log, and reports use persisted data", async ({

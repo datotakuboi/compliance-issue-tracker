@@ -12,7 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-type Session = { id: string };
+type Session = { id: string; role: "VIEWER" | "ANALYST" | "APPROVER" };
 type Counts = { total: number; pendingReview: number };
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
@@ -86,10 +86,12 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <ListTodo size={18} />Issues
             <span className="nav-count">{counts?.total ?? "…"}</span>
           </Link>
-          <Link className={active("approvals") ? "active" : ""} href="/approvals" aria-current={active("approvals") ? "page" : undefined}>
-            <ClipboardCheck size={18} />Approvals
-            <span className="nav-count">{counts?.pendingReview ?? "…"}</span>
-          </Link>
+          {session.role === "APPROVER" && (
+            <Link className={active("approvals") ? "active" : ""} href="/approvals" aria-current={active("approvals") ? "page" : undefined}>
+              <ClipboardCheck size={18} />Approvals
+              <span className="nav-count">{counts?.pendingReview ?? "…"}</span>
+            </Link>
+          )}
           <Link className={active("audit") ? "active" : ""} href="/audit" aria-current={active("audit") ? "page" : undefined}>
             <FileClock size={18} />Audit Logs
           </Link>

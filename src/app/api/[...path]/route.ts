@@ -194,6 +194,16 @@ async function handler(request: Request, context: Context) {
           Object.fromEntries(new URL(request.url).searchParams),
         ),
       );
+    if (route === "approvals" && method === "GET") {
+      authorize(actor, "approve");
+      const filters = new URL(request.url).searchParams;
+      filters.set("status", "PENDING_REVIEW");
+      return respond(
+        await listIssues(actor, Object.fromEntries(filters), {
+          approvalQueue: true,
+        }),
+      );
+    }
     if (route === "issues" && method === "GET")
       return respond(
         await listIssues(

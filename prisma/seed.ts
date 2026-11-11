@@ -1,5 +1,5 @@
 import { db } from "../src/server/db.ts";
-import type { Severity, Status } from "@prisma/client";
+import { Prisma, type Severity, type Status } from "@prisma/client";
 
 const users = [
   { id: "demo-viewer", name: "Sam Rivera", role: "VIEWER" as const },
@@ -17,6 +17,60 @@ function dueIn(days: number) {
   date.setUTCHours(0, 0, 0, 0);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
+}
+
+async function ensurePendingProposal(
+  transaction: Prisma.TransactionClient,
+  issue: {
+    id: string;
+    version: number;
+    status: Status;
+    ownerId: string | null;
+  },
+) {
+  if (issue.status !== "PENDING_REVIEW" || !issue.ownerId) return;
+  const [existingRun, evidenceCount] = await Promise.all([
+    transaction.playbookRun.findFirst({ where: { issueId: issue.id } }),
+    transaction.evidence.count({ where: { issueId: issue.id } }),
+  ]);
+  if (existingRun || evidenceCount === 0) return;
+
+  const runId = `seed-run-${issue.id}`;
+  const blockers: string[] = [];
+  await transaction.playbookRun.create({
+    data: {
+      id: runId,
+      issueId: issue.id,
+      requesterId: "demo-analyst",
+      analyzedVersion: issue.version,
+      findings: {
+        playbook: "controlled-remediation-v1",
+        recommendations: [
+          "Review the tabletop exercise report and document any follow-up actions.",
+          "Confirm the evidence reference supports the recorded exercise outcome.",
+          "An independent approver must inspect the evidence before closure.",
+        ],
+        blockers,
+      },
+      actions: ["COMPLETE_ISSUE"],
+      state: "PROPOSED",
+    },
+  });
+  await transaction.auditEvent.create({
+    data: {
+      issueId: issue.id,
+      actorId: "demo-analyst",
+      action: "PLAYBOOK_ANALYZED",
+      correlationId: `${runId}-analysis`,
+      details: {
+        source: "demo-seed",
+        runId,
+        state: "PROPOSED",
+        analyzedVersion: issue.version,
+        blockers,
+      },
+    },
+  });
 }
 
 const issues: {
@@ -89,8 +143,14 @@ try {
         update: {},
       });
     for (const item of issues) {
-      if (await transaction.issue.findUnique({ where: { id: item.id } }))
+      const existing = await transaction.issue.findUnique({
+        where: { id: item.id },
+        select: { id: true, version: true, status: true, ownerId: true },
+      });
+      if (existing) {
+        await ensurePendingProposal(transaction, existing);
         continue;
+      }
       const { days, ...data } = item;
       await transaction.issue.create({
         data: { ...data, dueDate: dueIn(days) },
@@ -131,6 +191,12 @@ try {
           },
         });
       }
+      await ensurePendingProposal(transaction, {
+        id: item.id,
+        version: 1,
+        status: item.status,
+        ownerId: item.ownerId,
+      });
       if (item.status === "COMPLETED") {
         await transaction.playbookRun.create({
           data: {

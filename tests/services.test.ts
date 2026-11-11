@@ -147,16 +147,34 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "true")(
         }),
       ).rejects.toMatchObject({ status: 403 });
       const ownRun = await analyzeIssue(
-        approver,
+        analyst,
         issue.id,
         run.analyzedVersion,
       );
+      await db.playbookRun.update({
+        where: { id: ownRun.id },
+        data: { requesterId: approver.id },
+      });
       await expect(
         reviewPlan(approver, ownRun.id, {
           approved: true,
           note: "Trying to approve my proposal",
         }),
       ).rejects.toMatchObject({ code: "SELF_APPROVAL" });
+    });
+
+    it("keeps approvers from changing issues or executing remediation", async () => {
+      const issue = await makeIssue();
+      await expect(
+        updateIssue(approver, issue.id, {
+          ...input,
+          version: issue.version,
+          status: "IN_PROGRESS",
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+      await expect(analyzeIssue(approver, issue.id, issue.version)).rejects.toMatchObject({ status: 403 });
+      const { run } = await ready();
+      await expect(executePlan(approver, run.id)).rejects.toMatchObject({ status: 403 });
     });
 
     it("invalidates an approved plan when evidence changes", async () => {

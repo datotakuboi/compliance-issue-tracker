@@ -6,6 +6,8 @@ import { hashToken } from "../src/server/auth.ts";
 
 const prefix = `api-${randomUUID()}`;
 const viewerToken = randomBytes(32).toString("base64url");
+const analystToken = randomBytes(32).toString("base64url");
+const approverToken = randomBytes(32).toString("base64url");
 const serviceToken = randomBytes(32).toString("base64url");
 const expiredToken = randomBytes(32).toString("base64url");
 const origin = process.env.APP_ORIGIN ?? "http://127.0.0.1:3000";
@@ -33,6 +35,24 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "true")(
           },
         },
       });
+      for (const [role, token] of [
+        ["ANALYST", analystToken],
+        ["APPROVER", approverToken],
+      ] as const) {
+        await db.user.create({
+          data: {
+            id: `${prefix}-${role.toLowerCase()}`,
+            name: `API ${role}`,
+            role,
+            sessions: {
+              create: {
+                tokenHash: hashToken(token),
+                expiresAt: new Date(Date.now() + 60000),
+              },
+            },
+          },
+        });
+      }
       await db.user.create({
         data: {
           id: `${prefix}-service`,
@@ -160,6 +180,31 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "true")(
       expect(auditBody.items).toBeInstanceOf(Array);
       expect(auditBody.total).toEqual(expect.any(Number));
       expect(auditBody.pageSize).toBe(5);
+    });
+    it("restricts the approvals queue endpoint to approvers", async () => {
+      const viewer = await GET(
+        new Request(`${origin}/api/approvals`, {
+          headers: { Cookie: `cw_session=${viewerToken}` },
+        }),
+        context("approvals"),
+      );
+      expect(viewer.status).toBe(403);
+      const analyst = await GET(
+        new Request(`${origin}/api/approvals`, {
+          headers: { Cookie: `cw_session=${analystToken}` },
+        }),
+        context("approvals"),
+      );
+      expect(analyst.status).toBe(403);
+      const approver = await GET(
+        new Request(`${origin}/api/approvals`, {
+          headers: { Cookie: `cw_session=${approverToken}` },
+        }),
+        context("approvals"),
+      );
+      expect(approver.status).toBe(200);
+      const body = await approver.json();
+      expect(body.items.every((issue: { status: string }) => issue.status === "PENDING_REVIEW")).toBe(true);
     });
   },
 );

@@ -33,7 +33,7 @@ The seed adds five issues and four identities without overwriting existing recor
 | Account           | Role     | Permissions                                                           |
 | ----------------- | -------- | --------------------------------------------------------------------- |
 | Alex Morgan       | Analyst  | Read, create/edit, attach references, analyze, execute approved plans |
-| Jordan Lee        | Approver | Analyst permissions plus independent approval/rejection               |
+| Jordan Lee        | Approver | Read issues and independently approve/reject another user's proposal  |
 | Sam Rivera        | Viewer   | Read issues, evidence, and audit history                              |
 | Remediation agent | Service  | Bearer-token scopes only; cannot sign in or approve                   |
 
@@ -162,6 +162,7 @@ All data routes require an unexpired session or scoped bearer credential. Cookie
 | POST / GET / DELETE | `/api/auth/session`        | Demo login / identity / logout                  |
 | GET                 | `/api/users`               | Public human user fields for owners             |
 | GET                 | `/api/dashboard`           | Open, overdue, pending-review, completed, total |
+| GET                 | `/api/approvals`           | Approver-only queue of current independent proposals |
 | GET / POST          | `/api/issues`              | Filter/paginate or create                       |
 | GET / PATCH         | `/api/issues/:id`          | Details or versioned editable fields            |
 | POST                | `/api/issues/:id/evidence` | `{ version, url, description }`                 |
@@ -190,6 +191,23 @@ npm audit
 `npm test` runs unit and linked-SDK MCP tests; database suites are explicitly skipped there. `test:integration` enables them using a separate `tracker_test` schema in the configured database. `test:e2e` migrates/seeds that schema and starts a separate server on port `3100` with isolated `.next-e2e` output. It tests desktop/mobile UI approval and viewer restrictions, plus the full real stdio MCP -> API -> human approval -> execution path. Test-created issues remain in the test schema for inspection, not your normal `public` schema. Do not point test commands at a production database. Browser screenshots/traces are under ignored `test-results/`.
 
 `npm run test:mcp` is a read-only smoke test against the already-running normal app; `--analyze`, `--evidence`, and `--execute` deliberately mutate the selected normal issue. `npm run db:seed` is safe to repeat and preserves edits. CI runs on Node 24 with a temporary PostgreSQL 17 service. Format with `npm run format`.
+
+## Assessment Coverage
+
+| Assessment criterion | Implemented evidence |
+| -------------------- | ------------------- |
+| Functionality and completeness | Role-based login, issue list/details, filters, dashboard, evidence references, approval workflow, reports, and audit history. |
+| Code organization and maintainability | App Router UI, shared tracker components, server services/auth/validation, Prisma schema, and isolated MCP server are separated by responsibility. |
+| Database and API design | Relational entities, foreign keys, enums, indexes, bounded pagination, strict Zod validation, version checks, and transactional mutations are documented above. |
+| MCP implementation and tool design | Six narrowly scoped stdio tools call the authenticated HTTP API; there is no generic HTTP, SQL, shell, or approval tool. |
+| Automated resolution workflow/playbook | Deterministic analysis records blockers or a version-bound proposal; only an allowlisted completion action can execute after human approval. |
+| Security awareness for AI/MCP actions | Hashed expiring credentials, least-privilege scopes, API-side authorization, origin checks, no evidence fetching, untrusted-content labeling, and human approval. |
+| Error handling | Validation and permission failures return structured API errors; stale versions and invalid workflow states are rejected, and clients retain recoverable errors. |
+| Responsive UI/UX | Desktop and mobile Playwright coverage exercises the role-specific workflows and layout behavior. |
+| Documentation quality | This README covers setup, architecture, API/MCP configuration, limitations, verification commands, and a reproducible playbook walkthrough. |
+| Architecture and design explanation | Walk through Browser -> API -> services -> PostgreSQL, then MCP client -> stdio server -> scoped API; explain why analysis, approval, execution, and audit are separate steps. |
+
+Evidence is a validated link/reference, not an uploaded file. The playbook does not perform or verify external remediation; completion records the approved tracking action. For a live review, demonstrate a blocked analysis, add a reference, create a proposal, approve it as Jordan, execute it as Alex, then inspect the audit trail.
 
 The lockfile pins dependencies for reproducibility. Patched `deepmerge-ts`/`effect` overrides address advisories in Prisma 6's configuration tooling; compatibility is covered by migration/build/tests. npm 10 can fail resolving optional Vitest peers; use `npx --yes npm@11 ci`. Do not apply a forced major ORM upgrade just to resolve an install error. On Windows, stop the running dev server before `npm run build` or `prisma generate` if Prisma reports an `EPERM` engine DLL rename error, then restart it afterward.
 

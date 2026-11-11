@@ -417,8 +417,8 @@ export function Tracker({
     revision,
   );
   const approvalQueue = useResource<IssueList>(
-    session && view === "dashboard"
-      ? "issues?status=PENDING_REVIEW&pageSize=3"
+    session && session.role === "APPROVER" && view === "dashboard"
+      ? "approvals?pageSize=3"
       : null,
     revision,
   );
@@ -432,8 +432,11 @@ export function Tracker({
     ...(onlyOverdue ? { overdue: "true" } : {}),
   });
   const listing = useResource<IssueList>(
-    session && !issueId && ["dashboard", "issues", "approvals"].includes(view)
-      ? `issues?${filters}`
+    session &&
+    !issueId &&
+    ["dashboard", "issues", "approvals"].includes(view) &&
+    (view !== "approvals" || session.role === "APPROVER")
+      ? `${view === "approvals" ? "approvals" : "issues"}?${filters}`
       : null,
     revision,
   );
@@ -482,7 +485,7 @@ export function Tracker({
     setOlderAudit([]);
     setAuditCursor(undefined);
   }, [issueId, revision]);
-  const canWrite = session?.role === "ANALYST" || session?.role === "APPROVER";
+  const canWrite = session?.role === "ANALYST";
   const attentionIssues = stats.data?.attention ?? [];
   const activeFilters = [
     ...(query
@@ -623,6 +626,20 @@ export function Tracker({
         }
       />
     );
+  if (view === "approvals" && session.role !== "APPROVER")
+    return (
+      <main className="main-shell">
+        <div className="content">
+          <div className="alert" role="alert">
+            <CircleAlert size={18} />
+            <span>
+              Approver access is required to view the approvals queue. Your
+              current role is {label(session.role)}. <Link href="/">Return to dashboard</Link>
+            </span>
+          </div>
+        </div>
+      </main>
+    );
 
   const issue = detail.data;
   const title = issueId === "new"
@@ -665,17 +682,19 @@ export function Tracker({
             <kbd>⌘ K</kbd>
           </form>
           <div className="topbar-actions">
-            <Link
-              className="icon-button notification-button"
-              href="/approvals"
-              title="Open approvals"
-              aria-label="Open approvals"
-            >
-              <Bell size={18} />
-              {(stats.data?.pendingReview ?? 0) > 0 && (
-                <span className="notification-dot" />
-              )}
-            </Link>
+            {session.role === "APPROVER" && (
+              <Link
+                className="icon-button notification-button"
+                href="/approvals"
+                title="Open approvals"
+                aria-label="Open approvals"
+              >
+                <Bell size={18} />
+                {(stats.data?.pendingReview ?? 0) > 0 && (
+                  <span className="notification-dot" />
+                )}
+              </Link>
+            )}
             <span className="topbar-avatar">{initials(session.name)}</span>
             <span className="topbar-user">
               <strong>{session.name}</strong>
@@ -783,6 +802,7 @@ export function Tracker({
                     reports={reports.data}
                     issues={attentionIssues}
                     approvals={approvalQueue.data?.items ?? []}
+                    showApprovals={session.role === "APPROVER"}
                     loading={stats.loading || reports.loading || approvalQueue.loading}
                     activeTab={attentionTab}
                     onTabChange={setAttentionTab}
@@ -1797,6 +1817,7 @@ function DashboardOverview({
   reports,
   issues,
   approvals,
+  showApprovals,
   loading,
   activeTab,
   onTabChange,
@@ -1805,6 +1826,7 @@ function DashboardOverview({
   reports?: ReportData;
   issues: Counts["attention"];
   approvals: IssueList["items"];
+  showApprovals: boolean;
   loading: boolean;
   activeTab: "critical" | "review" | "sla";
   onTabChange: (tab: "critical" | "review" | "sla") => void;
@@ -1826,7 +1848,9 @@ function DashboardOverview({
   ];
   const tabs = [
     { key: "critical" as const, label: "Critical & overdue", count: issues.filter((issue) => issue.severity === "CRITICAL" || overdue(issue)).length },
-    { key: "review" as const, label: "Awaiting review", count: stats?.pendingReview ?? 0 },
+    ...(showApprovals
+      ? [{ key: "review" as const, label: "Awaiting review", count: stats?.pendingReview ?? 0 }]
+      : []),
     { key: "sla" as const, label: "Overdue", count: stats?.overdue ?? 0 },
   ];
 
@@ -1876,7 +1900,7 @@ function DashboardOverview({
                     <td><span className="dashboard-owner"><span className="avatar tiny">{issue.owner ? initials(issue.owner.name) : "?"}</span>{issue.owner?.name ?? "Unassigned"}</span></td>
                     <td><span className={overdue(issue) ? "due overdue-text" : "due"}>{overdue(issue) && <Clock3 size={13} />}{date(issue.dueDate)}{overdue(issue) && <small className="overdue-caption">Past due</small>}</span></td>
                     <td><Badge value={issue.status} /></td>
-                    <td><Link className="button secondary compact" href={`/issues/${issue.id}`}>{issue.status === "PENDING_REVIEW" ? "Review" : "Open"}<ArrowRight size={13} /></Link></td>
+                    <td><Link className="button secondary compact" href={`/issues/${issue.id}`}>{issue.status === "PENDING_REVIEW" && showApprovals ? "Review" : "Open"}<ArrowRight size={13} /></Link></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -1886,13 +1910,13 @@ function DashboardOverview({
         </section>
 
         <aside className="dashboard-side-panels">
-          <section className="approval-panel" aria-label="Pending human approvals">
+          {showApprovals && <section className="approval-panel" aria-label="Pending human approvals">
             <div className="side-panel-heading"><div><ClipboardCheck size={17} /><h2>Pending approvals</h2></div><span className="count-label">{stats?.pendingReview ?? 0} queued</span></div>
             <p className="side-panel-description">Human review is required before a remediation proposal can execute.</p>
             {approvals.slice(0, 3).map((issue) => <Link className="approval-queue-item" key={issue.id} href={`/issues/${issue.id}`}><span className="record-id">{issue.id} · {issue.owner?.name ?? "Unassigned"}</span><strong>{issue.title}</strong><span>Review evidence <ArrowRight size={13} /></span></Link>)}
             {approvals.length === 0 && <p className="queue-empty">No proposals are awaiting review.</p>}
             <Link className="button secondary compact queue-link" href="/approvals">Go to approvals queue <ArrowRight size={13} /></Link>
-          </section>
+          </section>}
 
           <section className="mcp-status-panel" aria-label="MCP safeguards">
             <div className="side-panel-heading"><div><SearchCheck size={17} /><h2>MCP agent tools</h2></div><span className="mcp-scope-indicator">Scoped stdio</span></div>
@@ -2013,7 +2037,9 @@ function IssueForm({
       )}
       <fieldset disabled={busy}>
         <label className="title-field">
-          Issue title <span className="required-mark">*</span>
+          <span className="title-field-label">
+            Issue title <span className="required-mark">*</span>
+          </span>
           <input
             name="title"
             aria-label="Title"
@@ -2021,7 +2047,6 @@ function IssueForm({
             required
             minLength={5}
             maxLength={160}
-            placeholder="Summarize the control deficiency and affected system"
           />
           <small>Specify the target environment and scope of the deviation.</small>
         </label>
@@ -2263,7 +2288,7 @@ function Proposal({
       {run.state === "PROPOSED" && run.requesterId === session.id && !stale && (
         <p className="muted">Awaiting an independent approver.</p>
       )}
-      {run.state === "APPROVED" && !stale && session.role !== "VIEWER" && (
+      {run.state === "APPROVED" && !stale && session.role === "ANALYST" && (
         <button className="button primary" disabled={busy} onClick={onExecute}>
           <Play size={15} />
           Execute approved plan

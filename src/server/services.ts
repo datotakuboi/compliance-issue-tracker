@@ -84,13 +84,28 @@ function unchanged(actual: number, expected: number) {
   );
 }
 
-export async function listIssues(actor: Actor, input: unknown) {
+export async function listIssues(
+  actor: Actor,
+  input: unknown,
+  options: { approvalQueue?: boolean } = {},
+) {
   authorize(actor, "issues:read");
+  if (options.approvalQueue) authorize(actor, "approve");
   const filters = filterSchema.parse(input);
   const where: Prisma.IssueWhereInput = {
-    status: filters.status,
+    status: options.approvalQueue ? "PENDING_REVIEW" : filters.status,
     severity: filters.severity,
     ownerId: filters.ownerId,
+    ...(options.approvalQueue
+      ? {
+          runs: {
+            some: {
+              state: "PROPOSED",
+              requesterId: { not: actor.id },
+            },
+          },
+        }
+      : {}),
     ...(filters.query
       ? {
           OR: [

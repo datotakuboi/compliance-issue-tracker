@@ -52,10 +52,10 @@ export function authorize(actor: Actor, permission: Scope | "approve") {
     return;
   }
   assert(
-    actor.role === "ANALYST" || actor.role === "APPROVER",
+    actor.role === "ANALYST",
     403,
     "FORBIDDEN",
-    "Your role is read-only.",
+    "Only analysts can manage issues or execute remediation.",
   );
 }
 

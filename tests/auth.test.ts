@@ -59,6 +59,17 @@ describe("authorization boundary", () => {
     expect(() => authorize(human("APPROVER"), "approve")).not.toThrow();
     expect(() => authorize(human("SERVICE"), "issues:read")).toThrow();
   });
+  it("separates analyst mutations from approver decisions", () => {
+    for (const permission of [
+      "issues:write",
+      "playbook:analyze",
+      "playbook:execute",
+    ] as const) {
+      expect(() => authorize(human("ANALYST"), permission)).not.toThrow();
+      expect(() => authorize(human("APPROVER"), permission)).toThrow();
+    }
+    expect(() => authorize(human("APPROVER"), "issues:read")).not.toThrow();
+  });
   it("hashes credentials instead of storing bearer secrets", () => {
     expect(hashToken("secret")).toHaveLength(64);
     expect(hashToken("secret")).not.toContain("secret");
