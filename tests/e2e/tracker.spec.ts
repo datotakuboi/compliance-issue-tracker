@@ -177,6 +177,59 @@ test("analysts cannot view or access the approvals queue", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("repeated blocked analysis does not duplicate proposals", async ({
+  page,
+}) => {
+  await page.goto("/issues");
+  await signIn(page, "Alex Morgan");
+  await expect(page.locator(".topbar-user strong")).toHaveText("Alex Morgan");
+  const created = await page.evaluate(async (body) => {
+    const response = await fetch("/api/issues", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return { status: response.status, issue: await response.json() };
+  }, {
+      title: `Idempotent analysis ${Date.now()}`,
+      description: "Verify repeated blocked analysis does not create duplicate runs.",
+      severity: "MEDIUM",
+      ownerId: "demo-analyst",
+      dueDate: "2030-01-01",
+  });
+  expect(created.status).toBe(201);
+  const issue = created.issue;
+  await page.goto(`/issues/${issue.id}`);
+
+  const runAnalysis = page.getByRole("button", { name: "Run analysis" });
+  await runAnalysis.click();
+  await expect(
+    page.getByText("Attach an evidence reference documenting the completed remediation.", { exact: true }),
+  ).toBeVisible();
+  await expect(runAnalysis).toHaveCount(0);
+  await expect(page.locator(".proposal")).toHaveCount(1);
+
+  const firstDetail = await page.evaluate(async (issueId) =>
+    (await fetch(`/api/issues/${issueId}`, { credentials: "same-origin" })).json(),
+  issue.id);
+  const repeatedRun = await page.evaluate(async ({ issueId, version }) => {
+    const response = await fetch(`/api/issues/${issueId}/analyze`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version }),
+    });
+    return { status: response.status, run: await response.json() };
+  }, { issueId: issue.id, version: firstDetail.version });
+  expect([200, 201]).toContain(repeatedRun.status);
+  expect(repeatedRun.run.id).toBe(firstDetail.runs[0].id);
+  const latestDetail = await page.evaluate(async (issueId) =>
+    (await fetch(`/api/issues/${issueId}`, { credentials: "same-origin" })).json(),
+  issue.id);
+  expect(latestDetail.runs).toHaveLength(1);
+});
+
 test("create issue severity choices stay balanced and interactive", async ({
   page,
 }) => {

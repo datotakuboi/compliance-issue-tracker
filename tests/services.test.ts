@@ -132,10 +132,28 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "true")(
       const issue = await makeIssue();
       const run = await analyzeIssue(service, issue.id, 1);
       expect(run.state).toBe("BLOCKED");
+      const repeatedRun = await analyzeIssue(service, issue.id, 1);
+      expect(repeatedRun.id).toBe(run.id);
+      expect(
+        await db.playbookRun.count({ where: { issueId: issue.id } }),
+      ).toBe(1);
       await expect(executePlan(service, run.id)).rejects.toMatchObject({
         code: "APPROVAL_REQUIRED",
       });
       expect((await getIssue(viewer, issue.id)).status).toBe("OPEN");
+    });
+
+    it("reuses the current proposal on repeated analysis", async () => {
+      const { issue, run } = await ready();
+      const repeatedRun = await analyzeIssue(
+        analyst,
+        issue.id,
+        run.analyzedVersion,
+      );
+      expect(repeatedRun.id).toBe(run.id);
+      expect(
+        await db.playbookRun.count({ where: { issueId: issue.id } }),
+      ).toBe(1);
     });
 
     it("denies both service approval and human self-approval", async () => {

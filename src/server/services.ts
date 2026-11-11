@@ -459,6 +459,15 @@ export async function analyzeIssue(
       "ALREADY_COMPLETED",
       "This issue is already completed.",
     );
+    const existingRun = await transaction.playbookRun.findFirst({
+      where: {
+        issueId: id,
+        analyzedVersion: version,
+        state: { in: ["BLOCKED", "PROPOSED"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (existingRun) return existingRun;
     const findings = [
       "Perform the underlying remediation externally; this playbook cannot verify external work.",
       "For access reviews: confirm account justification, revoke unnecessary access, and record the review outcome.",

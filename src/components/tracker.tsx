@@ -642,6 +642,12 @@ export function Tracker({
     );
 
   const issue = detail.data;
+  const hasCurrentAnalysis =
+    issue?.runs.some(
+      (run) =>
+        run.analyzedVersion === issue.version &&
+        (run.state === "BLOCKED" || run.state === "PROPOSED"),
+    ) ?? false;
   const title = issueId === "new"
     ? "Create an issue"
     : issueId
@@ -1642,7 +1648,7 @@ export function Tracker({
                             <Sparkles size={18} />
                             Remediation playbook
                           </h2>
-                          {canWrite && issue.status !== "COMPLETED" && (
+                          {canWrite && issue.status !== "COMPLETED" && !hasCurrentAnalysis && (
                             <button
                               className="button secondary compact"
                               disabled={busy}
@@ -1666,7 +1672,7 @@ export function Tracker({
                             No analysis recorded.
                           </p>
                         )}
-                        {issue.runs.map((run) => (
+                        {uniqueAnalysisRuns(issue.runs).map((run) => (
                           <Proposal
                             key={run.id}
                             run={run}
@@ -2148,6 +2154,18 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function uniqueAnalysisRuns(runs: Issue["runs"]) {
+  return runs.filter(
+    (run, index) =>
+      runs.findIndex(
+        (candidate) =>
+          candidate.analyzedVersion === run.analyzedVersion &&
+          candidate.requesterId === run.requesterId &&
+          candidate.state === run.state,
+      ) === index,
+  );
 }
 
 function Proposal({
