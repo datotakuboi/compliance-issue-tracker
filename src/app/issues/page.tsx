@@ -11,6 +11,7 @@ export default async function Page({
       view="issues"
       initialStatus={typeof filters.status === "string" ? filters.status : ""}
       initialOverdue={filters.overdue === "true"}
+      initialQuery={typeof filters.query === "string" ? filters.query : ""}
     />
   );
 }

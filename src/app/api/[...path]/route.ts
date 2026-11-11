@@ -19,7 +19,9 @@ import {
   executePlan,
   getAudit,
   getIssue,
+  listAuditEvents,
   listIssues,
+  reportSummary,
   reviewPlan,
   updateIssue,
 } from "../../../server/services.ts";
@@ -183,6 +185,15 @@ async function handler(request: Request, context: Context) {
     }
     if (route === "dashboard" && method === "GET")
       return respond(await dashboard(actor));
+    if (route === "reports" && method === "GET")
+      return respond(await reportSummary(actor));
+    if (route === "audit" && method === "GET")
+      return respond(
+        await listAuditEvents(
+          actor,
+          Object.fromEntries(new URL(request.url).searchParams),
+        ),
+      );
     if (route === "issues" && method === "GET")
       return respond(
         await listIssues(

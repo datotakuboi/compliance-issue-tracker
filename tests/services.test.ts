@@ -100,6 +100,13 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "true")(
       });
     });
 
+    it("returns priority issues independently of register pagination", async () => {
+      const issue = await makeIssue();
+      const summary = await dashboard(viewer);
+      expect(summary.attention.map((item) => item.id)).toContain(issue.id);
+      expect(summary.attention.length).toBeLessThanOrEqual(5);
+    });
+
     it("persists issue mutations and audits together, and rejects stale edits", async () => {
       const issue = await makeIssue();
       await updateIssue(analyst, issue.id, {

@@ -4,6 +4,7 @@ import { db } from "./db.ts";
 import { authorize, type Actor } from "./auth.ts";
 import { assert } from "./errors.ts";
 import {
+  auditFilterSchema,
   decisionSchema,
   evidenceSchema,
   filterSchema,
@@ -154,7 +155,16 @@ export async function dashboard(actor: Actor) {
   authorize(actor, "issues:read");
   return db.$transaction(
     async (transaction) => {
-      const [open, overdue, completed, pendingReview, total] =
+      const actionable = {
+        OR: [
+          {
+            status: { not: "COMPLETED" as const },
+            dueDate: { lt: todayUtc() },
+          },
+          { status: "PENDING_REVIEW" as const },
+        ],
+      };
+      const [open, overdue, completed, pendingReview, total, attention] =
         await Promise.all([
           transaction.issue.count({ where: { status: { not: "COMPLETED" } } }),
           transaction.issue.count({
@@ -166,8 +176,113 @@ export async function dashboard(actor: Actor) {
           transaction.issue.count({ where: { status: "COMPLETED" } }),
           transaction.issue.count({ where: { status: "PENDING_REVIEW" } }),
           transaction.issue.count(),
+          transaction.issue.findMany({
+            where: actionable,
+            include: { owner: person },
+            orderBy: [{ dueDate: "asc" }, { severity: "desc" }, { id: "asc" }],
+            take: 5,
+          }),
         ]);
-      return { open, overdue, completed, pendingReview, total };
+      return { open, overdue, completed, pendingReview, total, attention };
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
+}
+
+export async function listAuditEvents(actor: Actor, input: unknown) {
+  authorize(actor, "issues:read");
+  const filters = auditFilterSchema.parse(input);
+  const where: Prisma.AuditEventWhereInput = {
+    issueId: filters.issueId,
+    actorId: filters.actorId,
+    action: filters.action,
+    ...(filters.query
+      ? {
+          OR: [
+            { action: { contains: filters.query, mode: "insensitive" } },
+            { issueId: { contains: filters.query, mode: "insensitive" } },
+            {
+              actor: { name: { contains: filters.query, mode: "insensitive" } },
+            },
+            {
+              issue: {
+                title: { contains: filters.query, mode: "insensitive" },
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+  return db.$transaction(
+    async (transaction) => {
+      const [items, total] = await Promise.all([
+        transaction.auditEvent.findMany({
+          where,
+          include: {
+            actor: person,
+            issue: {
+              select: { id: true, title: true, severity: true, status: true },
+            },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          skip: (filters.page - 1) * filters.pageSize,
+          take: filters.pageSize,
+        }),
+        transaction.auditEvent.count({ where }),
+      ]);
+      return {
+        items,
+        total,
+        page: filters.page,
+        pageSize: filters.pageSize,
+      };
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
+}
+
+export async function reportSummary(actor: Actor) {
+  authorize(actor, "issues:read");
+  return db.$transaction(
+    async (transaction) => {
+      const [total, overdue, dueSoon, severity, status, latestAudit] =
+        await Promise.all([
+          transaction.issue.count(),
+          transaction.issue.count({
+            where: {
+              status: { not: "COMPLETED" },
+              dueDate: { lt: todayUtc() },
+            },
+          }),
+          transaction.issue.count({
+            where: {
+              status: { not: "COMPLETED" },
+              dueDate: {
+                gte: todayUtc(),
+                lt: new Date(todayUtc().valueOf() + 30 * 24 * 60 * 60 * 1000),
+              },
+            },
+          }),
+          transaction.issue.groupBy({
+            by: ["severity"],
+            _count: { _all: true },
+          }),
+          transaction.issue.groupBy({ by: ["status"], _count: { _all: true } }),
+          transaction.auditEvent.count(),
+        ]);
+      return {
+        generatedAt: new Date(),
+        total,
+        overdue,
+        dueSoon,
+        auditEvents: latestAudit,
+        severity: Object.fromEntries(
+          severity.map((entry) => [entry.severity, entry._count._all]),
+        ),
+        status: Object.fromEntries(
+          status.map((entry) => [entry.status, entry._count._all]),
+        ),
+      };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
   );

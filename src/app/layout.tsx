@@ -5,6 +5,7 @@ import "@fontsource/dm-sans/600.css";
 import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "./globals.css";
+import { WorkspaceShell } from "../components/workspace-shell.tsx";
 
 export const metadata: Metadata = {
   title: "Compliwise | Issue Tracker",
@@ -17,7 +18,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><WorkspaceShell>{children}</WorkspaceShell></body>
     </html>
   );
 }

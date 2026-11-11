@@ -140,5 +140,26 @@ describe.skipIf(process.env.RUN_DB_TESTS !== "true")(
       expect(result.status).toBe(400);
       expect((await result.json()).error.code).toBe("VALIDATION_ERROR");
     });
+    it("exposes authenticated report aggregates and global audit pagination", async () => {
+      const headers = { Cookie: `cw_session=${viewerToken}` };
+      const reports = await GET(
+        new Request(`${origin}/api/reports`, { headers }),
+        context("reports"),
+      );
+      expect(reports.status).toBe(200);
+      const reportBody = await reports.json();
+      expect(reportBody.total).toEqual(expect.any(Number));
+      expect(reportBody.severity).toBeDefined();
+      expect(reportBody.status).toBeDefined();
+      const audit = await GET(
+        new Request(`${origin}/api/audit?page=1&pageSize=5`, { headers }),
+        context("audit"),
+      );
+      expect(audit.status).toBe(200);
+      const auditBody = await audit.json();
+      expect(auditBody.items).toBeInstanceOf(Array);
+      expect(auditBody.total).toEqual(expect.any(Number));
+      expect(auditBody.pageSize).toBe(5);
+    });
   },
 );

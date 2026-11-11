@@ -6,6 +6,7 @@ import { db } from "../../src/server/db.ts";
 import { hashToken, scopes } from "../../src/server/auth.ts";
 
 async function signIn(page: Page, name: string) {
+  await page.getByRole("button", { name: /Explore demo personas/ }).click();
   await page.getByRole("radio", { name, exact: true }).check();
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
@@ -18,8 +19,11 @@ test("independent review and audited resolution", async ({
   await page.goto("/");
   await signIn(page, "Alex Morgan");
   await expect(
-    page.getByRole("heading", { name: "Compliance overview" }),
+    page.getByRole("heading", { name: "Dashboard" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Needs attention" }),
+  ).toContainText("Quarterly access review overdue");
   await expect(page.locator("tbody tr").first()).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("overview.png"),
@@ -44,17 +48,32 @@ test("independent review and audited resolution", async ({
     page.viewportSize()!.width,
   );
   await page.getByRole("link", { name: "Create issue", exact: true }).click();
-  const title = `E2E access review ${testInfo.project.name} ${Date.now()}`;
+  let title = `E2E access review ${testInfo.project.name} ${Date.now()}`;
   await page.getByLabel("Title", { exact: true }).fill(title);
   await page
     .getByLabel("Description", { exact: true })
     .fill(
       "Review privileged access, remove unused accounts, and retain the signed review record.",
     );
-  await page.getByLabel("Severity", { exact: true }).selectOption("HIGH");
-  await page.getByLabel("Owner", { exact: true }).selectOption("demo-analyst");
-  await page.getByLabel("Due date", { exact: true }).fill("2020-01-01");
-  await page.getByRole("button", { name: "Create issue", exact: true }).click();
+  await page.getByRole("radio", { name: /High/ }).check();
+  await page.getByRole("combobox", { name: "Owner" }).click();
+  await page.locator('[role="option"][data-value="demo-analyst"]').click();
+  await page
+    .getByLabel("Target resolution date", { exact: true })
+    .fill("2020-01-01");
+  await page
+    .getByRole("button", { name: "Save and register issue", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: title, exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Edit issue details" }).first().click();
+  await expect(page.locator("h1")).toHaveText("Issue details");
+  title = `${title} updated`;
+  await page.getByLabel("Title", { exact: true }).fill(title);
+  await page.getByRole("combobox", { name: "Status" }).click();
+  await page.getByRole("option", { name: "In progress" }).click();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: title, exact: true }),
   ).toBeVisible();
@@ -87,7 +106,7 @@ test("independent review and audited resolution", async ({
     .click();
   await signIn(page, "Jordan Lee");
   await page
-    .getByLabel("Review decision note")
+    .getByLabel("Approval rationale")
     .fill(
       "Independently reviewed the attached evidence and authorize closure.",
     );
@@ -125,6 +144,60 @@ test("viewer can filter issues but cannot create or edit", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("register controls, global audit log, and reports use persisted data", async ({
+  page,
+}) => {
+  await page.goto("/issues");
+  await signIn(page, "Alex Morgan");
+  if (page.viewportSize()!.width > 600) {
+    await expect(
+      page.getByRole("columnheader", { name: "Evidence" }),
+    ).toBeVisible();
+  } else {
+    await expect(page.locator("tbody tr").first()).toContainText(/\d+ links?/);
+  }
+  const compact = page.locator(".view-switch button").nth(1);
+  await compact.click();
+  await expect(compact).toHaveAttribute("aria-pressed", "true");
+  const issueTable = page.locator(".issue-register .table-scroll");
+  await expect(issueTable).toHaveClass(/compact-view/);
+  const compactCellPadding = await issueTable
+    .locator("tbody td")
+    .first()
+    .evaluate((cell) => Number.parseFloat(getComputedStyle(cell).paddingTop));
+  const tableMode = page.locator(".view-switch button").first();
+  await tableMode.click();
+  await expect(tableMode).toHaveAttribute("aria-pressed", "true");
+  await expect(issueTable).not.toHaveClass(/compact-view/);
+  const tableCellPadding = await issueTable
+    .locator("tbody td")
+    .first()
+    .evaluate((cell) => Number.parseFloat(getComputedStyle(cell).paddingTop));
+  expect(compactCellPadding).toBeLessThan(tableCellPadding);
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export CSV" }).click();
+  expect((await download).suggestedFilename()).toMatch(
+    /^compliwise-issues\.csv$/,
+  );
+  await page.goto("/audit");
+  await expect(page.locator("h1")).toHaveText("Audit logs");
+  await expect(page.locator("tbody tr").first()).toBeVisible();
+  await page
+    .getByRole("searchbox", { name: "Search audit logs" })
+    .fill("ISSUE_CREATED");
+  await expect(page.locator("tbody tr").first()).toContainText("Issue created");
+  await page.goto("/reports");
+  await expect(
+    page.getByRole("heading", { name: "Compliance reports" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Issues by severity" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Issues by status" }),
+  ).toBeVisible();
+});
+
 test("login returns to the requested issue and logout requires confirmation", async ({
   page,
 }, testInfo) => {
@@ -138,9 +211,13 @@ test("login returns to the requested issue and logout requires confirmation", as
   });
   await page.goto("/issues/CW-101");
   await expect(page).toHaveURL(/\/login\?next=/);
+  await page.getByRole("button", { name: /Explore demo personas/ }).click();
+  await expect(
+    page.getByRole("radio", { name: "Alex Morgan", exact: true }),
+  ).toBeChecked();
   await expect(
     page.getByRole("button", { name: "Sign in", exact: true }),
-  ).toBeDisabled();
+  ).toBeEnabled();
   await page.getByRole("radio", { name: "Alex Morgan", exact: true }).check();
   await expect(page).toHaveURL(/\/login\?next=/);
   await page.screenshot({
@@ -156,7 +233,7 @@ test("login returns to the requested issue and logout requires confirmation", as
     }),
   ).toBeVisible();
   const trigger = page.getByRole("button", { name: "Sign out", exact: true });
-  const dialog = page.getByRole("dialog", { name: "Sign out of Compliwise?" });
+  const dialog = page.getByRole("dialog", { name: "Sign out" });
   await trigger.click();
   await expect(dialog).toBeVisible();
   await expect(
@@ -203,7 +280,9 @@ test("login returns to the requested issue and logout requires confirmation", as
   expect((await page.request.get("/api/auth/session")).status()).toBe(401);
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Sign in to Compliwise" }),
+    page.getByRole("heading", {
+      name: "Welcome back",
+    }),
   ).toBeVisible();
 });
 
@@ -213,7 +292,7 @@ test("failed logout preserves the session and leaves the modal recoverable", asy
   await page.goto("/");
   await signIn(page, "Alex Morgan");
   await expect(
-    page.getByRole("heading", { name: "Compliance overview" }),
+    page.getByRole("heading", { name: "Dashboard" }),
   ).toBeVisible();
   await page.route("**/api/auth/session", async (route) => {
     if (route.request().method() === "DELETE")
@@ -235,7 +314,7 @@ test("failed logout preserves the session and leaves the modal recoverable", asy
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Compliance overview" }),
+    page.getByRole("heading", { name: "Dashboard" }),
   ).toBeVisible();
 });
 
@@ -263,7 +342,7 @@ test("login errors are recoverable and external return URLs are ignored", async 
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL("/");
   await expect(
-    page.getByRole("heading", { name: "Compliance overview" }),
+    page.getByRole("heading", { name: "Dashboard" }),
   ).toBeVisible();
 });
 
