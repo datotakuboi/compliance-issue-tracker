@@ -1519,18 +1519,81 @@ details summary:hover {
 .table-scroll {
   position: relative;
 }
-.login-form { margin-top: 26px; text-align: left; }
-.login-form .login-accounts { margin: 0; gap: 10px; }
-.login-legend { padding: 0; margin-bottom: 10px; font-size: 12px; font-weight: 600; }
-.account { cursor: pointer; }
-.account.selected { border-color: var(--green); background: var(--green-pale); }
-.account:has(input:focus-visible) { outline: 2px solid var(--green); outline-offset: 3px; }
-.account-radio { width: 17px; height: 17px; margin: 0; accent-color: var(--green); flex-shrink: 0; }
-.login-submit { width: 100%; margin-top: 19px; min-height: 42px; }
-.logout-dialog { width: 420px; max-width: calc(100vw - 32px); padding: 0; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); box-shadow: 0 18px 70px #162b2330; }
-.logout-dialog::backdrop { background: #15241d66; }
-.logout-panel { padding: 26px; }
-.logout-mark { width: 43px; height: 43px; border-radius: 7px; background: var(--green-pale); color: var(--green); display: grid; place-items: center; margin-bottom: 17px; }
-.logout-panel h2 { font-size: 20px; overflow-wrap: anywhere; }
-.logout-panel > p { font-size: 13px; color: var(--muted); line-height: 1.8; margin: 10px 0 23px; }
-.logout-actions { display: flex; justify-content: flex-end; gap: 9px; }
+.login-form {
+  margin-top: 26px;
+  text-align: left;
+}
+.login-form .login-accounts {
+  margin: 0;
+  gap: 10px;
+}
+.login-legend {
+  padding: 0;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.account {
+  cursor: pointer;
+}
+.account.selected {
+  border-color: var(--green);
+  background: var(--green-pale);
+}
+.account:has(input:focus-visible) {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+.account-radio {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--green);
+  flex-shrink: 0;
+}
+.login-submit {
+  width: 100%;
+  margin-top: 19px;
+  min-height: 42px;
+}
+.logout-dialog {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 18px 70px #162b2330;
+}
+.logout-dialog::backdrop {
+  background: #15241d66;
+}
+.logout-panel {
+  padding: 26px;
+}
+.logout-mark {
+  width: 43px;
+  height: 43px;
+  border-radius: 7px;
+  background: var(--green-pale);
+  color: var(--green);
+  display: grid;
+  place-items: center;
+  margin-bottom: 17px;
+}
+.logout-panel h2 {
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+.logout-panel > p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.8;
+  margin: 10px 0 23px;
+}
+.logout-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}

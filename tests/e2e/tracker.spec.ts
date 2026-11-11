@@ -81,7 +81,10 @@ test("independent review and audited resolution", async ({
     page.getByRole("button", { name: "Approve closure" }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Sign out", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
   await signIn(page, "Jordan Lee");
   await page
     .getByLabel("Review decision note")
@@ -122,27 +125,50 @@ test("viewer can filter issues but cannot create or edit", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("login returns to the requested issue and logout requires confirmation", async ({ page }, testInfo) => {
+test("login returns to the requested issue and logout requires confirmation", async ({
+  page,
+}, testInfo) => {
   let logoutRequests = 0;
   page.on("request", (request) => {
-    if (request.method() === "DELETE" && new URL(request.url()).pathname === "/api/auth/session") logoutRequests++;
+    if (
+      request.method() === "DELETE" &&
+      new URL(request.url()).pathname === "/api/auth/session"
+    )
+      logoutRequests++;
   });
   await page.goto("/issues/CW-101");
   await expect(page).toHaveURL(/\/login\?next=/);
-  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Sign in", exact: true }),
+  ).toBeDisabled();
   await page.getByRole("radio", { name: "Alex Morgan", exact: true }).check();
   await expect(page).toHaveURL(/\/login\?next=/);
-  await page.screenshot({ path: testInfo.outputPath("login.png"), fullPage: true });
+  await page.screenshot({
+    path: testInfo.outputPath("login.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/issues\/CW-101$/);
-  await expect(page.getByRole("heading", { name: "Quarterly access review overdue", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Quarterly access review overdue",
+      exact: true,
+    }),
+  ).toBeVisible();
   const trigger = page.getByRole("button", { name: "Sign out", exact: true });
   const dialog = page.getByRole("dialog", { name: "Sign out of Compliwise?" });
   await trigger.click();
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
-  await page.screenshot({ path: testInfo.outputPath("logout-modal.png"), fullPage: true });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await expect(
+    dialog.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await page.screenshot({
+    path: testInfo.outputPath("logout-modal.png"),
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(page.viewportSize()!.width);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await expect(trigger).toBeFocused();
@@ -151,7 +177,9 @@ test("login returns to the requested issue and logout requires confirmation", as
   await expect(dialog).not.toBeVisible();
   expect(logoutRequests).toBe(0);
   let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   await page.route("**/api/auth/session", async (route) => {
     if (route.request().method() === "DELETE") await gate;
     await route.continue();
@@ -159,8 +187,12 @@ test("login returns to the requested issue and logout requires confirmation", as
   try {
     await trigger.click();
     await dialog.getByRole("button", { name: "Sign out", exact: true }).click();
-    await expect(dialog.getByRole("button", { name: "Signing out...", exact: true })).toBeDisabled();
-    await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
+    await expect(
+      dialog.getByRole("button", { name: "Signing out...", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      dialog.getByRole("button", { name: "Cancel", exact: true }),
+    ).toBeDisabled();
     await page.keyboard.press("Escape");
     await expect(dialog).toBeVisible();
   } finally {
@@ -170,41 +202,69 @@ test("login returns to the requested issue and logout requires confirmation", as
   expect(logoutRequests).toBe(1);
   expect((await page.request.get("/api/auth/session")).status()).toBe(401);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Sign in to Compliwise" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Sign in to Compliwise" }),
+  ).toBeVisible();
 });
 
-test("failed logout preserves the session and leaves the modal recoverable", async ({ page }) => {
+test("failed logout preserves the session and leaves the modal recoverable", async ({
+  page,
+}) => {
   await page.goto("/");
   await signIn(page, "Alex Morgan");
-  await expect(page.getByRole("heading", { name: "Compliance overview" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Compliance overview" }),
+  ).toBeVisible();
   await page.route("**/api/auth/session", async (route) => {
-    if (route.request().method() === "DELETE") await route.fulfill({ status: 503, json: { error: { message: "Sign-out service unavailable. Try again." } } });
+    if (route.request().method() === "DELETE")
+      await route.fulfill({
+        status: 503,
+        json: {
+          error: { message: "Sign-out service unavailable. Try again." },
+        },
+      });
     else await route.continue();
   });
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Sign out", exact: true }).click();
-  await expect(dialog.getByRole("alert")).toHaveText("Sign-out service unavailable. Try again.");
+  await expect(dialog.getByRole("alert")).toHaveText(
+    "Sign-out service unavailable. Try again.",
+  );
   expect((await page.request.get("/api/auth/session")).status()).toBe(200);
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByRole("heading", { name: "Compliance overview" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Compliance overview" }),
+  ).toBeVisible();
 });
 
-test("login errors are recoverable and external return URLs are ignored", async ({ page }) => {
+test("login errors are recoverable and external return URLs are ignored", async ({
+  page,
+}) => {
   await page.goto("/login?next=https%3A%2F%2Funtrusted.example");
   await page.route("**/api/auth/session", async (route) => {
-    if (route.request().method() === "POST") await route.fulfill({ status: 503, json: { error: { message: "Sign-in service unavailable. Try again." } } });
+    if (route.request().method() === "POST")
+      await route.fulfill({
+        status: 503,
+        json: { error: { message: "Sign-in service unavailable. Try again." } },
+      });
     else await route.continue();
   });
   await signIn(page, "Sam Rivera");
-  await expect(page.getByText("Sign-in service unavailable. Try again.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
+  await expect(
+    page.getByText("Sign-in service unavailable. Try again.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign in", exact: true }),
+  ).toBeEnabled();
   await expect(page.getByRole("radio", { name: "Sam Rivera" })).toBeChecked();
   await page.unroute("**/api/auth/session");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("heading", { name: "Compliance overview" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Compliance overview" }),
+  ).toBeVisible();
 });
 
 test("MCP resolution requires human approval and executes once", async ({

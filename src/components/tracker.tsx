@@ -211,7 +211,8 @@ export function Tracker({
   }, []);
   useEffect(() => {
     if (!sessionLoaded) return;
-    if (!session && !loginPage) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    if (!session && !loginPage)
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     if (session && loginPage) router.replace(returnTo);
   }, [sessionLoaded, session, loginPage, pathname, returnTo, router]);
   const demo = useResource<User[]>(
@@ -290,7 +291,11 @@ export function Tracker({
       setError("");
       setMessage("");
     } catch (failure) {
-      setLogoutError(failure instanceof Error ? failure.message : "Unable to sign out. Try again.");
+      setLogoutError(
+        failure instanceof Error
+          ? failure.message
+          : "Unable to sign out. Try again.",
+      );
     } finally {
       setLogoutBusy(false);
     }
@@ -304,10 +309,22 @@ export function Tracker({
     );
   if (!session)
     return (
-      <LoginForm accounts={demo.data ?? []} loading={demo.loading} busy={busy} error={error || demo.error} onSubmit={(userId) => perform(async () => {
-        await api("auth/session", "POST", { userId });
-        setSession(await api<User>("auth/session"));
-      }, "", false)} />
+      <LoginForm
+        accounts={demo.data ?? []}
+        loading={demo.loading}
+        busy={busy}
+        error={error || demo.error}
+        onSubmit={(userId) =>
+          perform(
+            async () => {
+              await api("auth/session", "POST", { userId });
+              setSession(await api<User>("auth/session"));
+            },
+            "",
+            false,
+          )
+        }
+      />
     );
 
   const issue = detail.data;
@@ -323,7 +340,14 @@ export function Tracker({
             : "All issues";
   return (
     <div className="app-shell">
-      <LogoutDialog open={logoutOpen} name={session.name} busy={logoutBusy} error={logoutError} onCancel={() => setLogoutOpen(false)} onConfirm={signOut} />
+      <LogoutDialog
+        open={logoutOpen}
+        name={session.name}
+        busy={logoutBusy}
+        error={logoutError}
+        onCancel={() => setLogoutOpen(false)}
+        onConfirm={signOut}
+      />
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -384,7 +408,10 @@ export function Tracker({
               title="Sign out"
               aria-label="Sign out"
               disabled={busy}
-              onClick={() => { setLogoutError(""); setLogoutOpen(true); }}
+              onClick={() => {
+                setLogoutError("");
+                setLogoutOpen(true);
+              }}
             >
               <LogOut size={17} />
             </button>
