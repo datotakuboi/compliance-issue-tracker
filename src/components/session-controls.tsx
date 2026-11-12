@@ -15,7 +15,6 @@ import {
   History,
   Link2,
   LoaderCircle,
-  LockKeyhole,
   LogOut,
   ShieldCheck,
   ShieldAlert,
@@ -356,6 +355,8 @@ export function RejectProposalDialog({
   severity,
   dueDate,
   requester,
+  requesterRole,
+  status,
   busy,
   onCancel,
   onConfirm,
@@ -367,6 +368,8 @@ export function RejectProposalDialog({
   severity: string;
   dueDate: string;
   requester: string;
+  requesterRole: string;
+  status: string;
   busy: boolean;
   onCancel: () => void;
   onConfirm: (reason: string, note: string) => Promise<boolean>;
@@ -411,47 +414,44 @@ export function RejectProposalDialog({
       }}
     >
       <form className="reject-panel" onSubmit={submit} aria-busy={busy}>
+        <div className="reject-top-stripe" />
         <header className="reject-header">
           <div className="reject-icon"><ShieldAlert size={19} /></div>
           <div>
             <div className="reject-title-line">
-              <h2 id="reject-title">Reject remediation proposal</h2>
+              <h2 id="reject-title">Reject proposal #{proposalId.slice(-6).toUpperCase()}</h2>
               <span>ACTION REQUIRED</span>
             </div>
-            <p id="reject-description">A recorded reason is required before this proposal returns to the remediation queue.</p>
+            <p id="reject-description">A clear reason and corrective instruction are required before this proposal can be returned for revision.</p>
           </div>
           <button className="icon-button" type="button" aria-label="Close rejection dialog" disabled={busy} onClick={onCancel}><X size={17} /></button>
         </header>
 
         <dl className="reject-context">
           <div><dt>Issue</dt><dd><strong>{issueId}</strong><span>{issueTitle}</span></dd></div>
-          <div><dt>Proposal</dt><dd><strong>#{proposalId.slice(-6).toUpperCase()}</strong></dd></div>
-          <div><dt>Requester</dt><dd>{requester}</dd></div>
-          <div><dt>Severity / due</dt><dd><strong>{severity}</strong><span>{dueDate}</span></dd></div>
+          <div><dt>Requester</dt><dd><span className="reject-requester-dot" />{requester} ({requesterRole})</dd></div>
+          <div><dt>Current state</dt><dd><strong>{severity}</strong><span>{status}</span></dd></div>
+          <div><dt>Target date</dt><dd>{dueDate}</dd></div>
         </dl>
 
         <fieldset className="reject-reasons" disabled={busy}>
-          <legend>Primary rejection reason <span className="required-mark">*</span></legend>
+          <div className="reject-reasons-heading"><legend>Primary rejection reason code <span className="required-mark">*</span></legend><span>Choose the closest reason</span></div>
           {rejectionReasons.map(({ value, label, description, icon: Icon }, index) => (
             <label className={`reject-reason${reason === value ? " selected" : ""}`} key={value}>
               <input ref={index === 0 ? reasonRef : undefined} type="radio" name={`reject-reason-${proposalId}`} value={value} checked={reason === value} onChange={() => setReason(value)} />
-              <span className="reject-reason-copy"><span className="reject-reason-title"><Icon size={14} /><strong>{label}</strong>{index === 0 && <span className="default-reason">DEFAULT</span>}</span><small>{description}</small></span>
+              <span className="reject-reason-copy"><span className="reject-reason-title"><Icon size={14} /><strong>{value}: {label}</strong>{index === 0 && <span className="default-reason">DEFAULT</span>}</span><small>{description}</small></span>
             </label>
           ))}
         </fieldset>
 
-        <label className="reject-note-label" htmlFor={`reject-note-${proposalId}`}>
-          Mandatory audit note & corrective instructions <span className="required-mark">*</span>
-          <span className="reject-note-count">{note.length} / 1000 characters · minimum 50</span>
-        </label>
+        <div className="reject-note-heading"><label className="reject-note-label" htmlFor={`reject-note-${proposalId}`}>Mandatory audit note &amp; corrective instructions <span className="required-mark">*</span></label><span className="reject-note-count">{note.length} / 1000 characters (minimum 50)</span></div>
         <textarea id={`reject-note-${proposalId}`} className="reject-note" value={note} onChange={(event) => setNote(event.target.value)} minLength={50} maxLength={1000} required disabled={busy} placeholder="Explain why the proposal is insufficient and what must change before resubmission." />
-        <p className="reject-privacy"><ShieldCheck size={13} />This note will be recorded in the issue audit trail and visible to reviewers.</p>
+        <p className="reject-privacy"><ShieldCheck size={13} />This note is recorded in the application audit trail and visible to reviewers. No email notification is sent.</p>
 
-        <div className="reject-consequence"><History size={16} /><div><strong>Audit and workflow impact</strong><p>The proposal will be marked rejected. The issue remains pending review so the analyst can revise and submit a new proposal.</p></div></div>
+        <div className="reject-consequence"><History size={17} /><div><strong>Audit protocol &amp; workflow impact</strong><ul><li>The proposal is marked <strong>REJECTED</strong> and your decision note is recorded in the audit trail.</li><li>The issue remains <strong>{status}</strong>; rejection does not change issue status or verify external remediation.</li><li>The analyst can update the issue and submit a new proposal for independent review.</li></ul></div></div>
 
         <footer className="reject-actions">
-          <span className="reject-signer"><LockKeyhole size={13} />Reviewer: {requester}</span>
-          <div><button className="button secondary" type="button" disabled={busy} onClick={onCancel}>Cancel and return</button><button className="button danger" type="submit" disabled={busy || note.trim().length < 50}>{busy ? <LoaderCircle size={15} className="spin" /> : <ShieldAlert size={15} />}{busy ? "Recording rejection..." : "Confirm & record rejection"}</button></div>
+          <div><button className="button secondary" type="button" disabled={busy} onClick={onCancel}>Cancel and return</button><button className="button danger reject-confirm" type="submit" disabled={busy || note.trim().length < 50}>{busy ? <LoaderCircle size={15} className="spin" /> : <ShieldAlert size={15} />}{busy ? "Recording rejection..." : "Confirm & record rejection"}</button></div>
         </footer>
       </form>
     </dialog>

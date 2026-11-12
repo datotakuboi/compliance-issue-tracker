@@ -2297,6 +2297,8 @@ function Proposal({
         severity={label(issue.severity)}
         dueDate={date(issue.dueDate)}
         requester={run.requester.name}
+        requesterRole={label(run.requester.role)}
+        status={label(issue.status)}
         busy={busy}
         onCancel={() => setRejectOpen(false)}
         onConfirm={(reason, rejectionNote) =>
